@@ -1,110 +1,147 @@
-
-// Basic automatic hair overlay using MediaPipe FaceMesh
+// ---------- ELEMENTOS ----------
 const video = document.getElementById('video');
-const output = document.getElementById('output');
-const ctx = output.getContext('2d');
-const overlayImg = document.getElementById('overlay');
-const styleSel = document.getElementById('style');
-const opacitySlider = document.getElementById('opacity');
-const snapBtn = document.getElementById('snap');
-const dl = document.getElementById('download');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const selectStyle = document.getElementById('style');
+const opacityInput = document.getElementById('opacity');
+const saveBtn = document.getElementById('save');
 
-overlayImg.style.opacity = opacitySlider.value;
+// Ajusta o tamanho do canvas ao do vídeo
+function syncCanvasSize() {
+  if (video.videoWidth && video.videoHeight) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  }
+}
 
-styleSel.addEventListener('change', e => {
-  overlayImg.src = `assets/overlays/${e.target.value}.png`;
+// ---------- CATÁLOGO DE CORTES ----------
+// Os PNGs ficam na RAIZ do repositório.
+// Para trocar os modelos sem mexer em código, basta substituir os 3 arquivos
+// pelos seus (com o MESMO nome: sidepart.png, shortcrop.png, quiff.png).
+const HAIR_STYLES = [
+  { id: 'sidepart', name: 'Social com risca (lado)', src: 'sidepart.png',   scale: 2.05, y: 0.78 },
+  { id: 'quiff',    name: 'Quiff',                    src: 'quiff.png',      scale: 2.00, y: 0.80 },
+  { id: 'short',    name: 'Social curto',             src: 'shortcrop.png',  scale: 1.90, y: 0.82 }
+];
+
+const images = {};
+let currentStyle = HAIR_STYLES[0];
+let currentOpacity = parseFloat(opacityInput.value);
+
+// Precarrega imagens e popula o select
+HAIR_STYLES.forEach(s => {
+  const img = new Image();
+  img.src = s.src;
+  img.crossOrigin = 'anonymous';
+  images[s.id] = img;
+
+  const opt = document.createElement('option');
+  opt.value = s.id;
+  opt.textContent = s.name;
+  selectStyle.appendChild(opt);
+});
+selectStyle.value = currentStyle.id;
+
+selectStyle.addEventListener('change', () => {
+  currentStyle = HAIR_STYLES.find(s => s.id === selectStyle.value);
+});
+opacityInput.addEventListener('input', () => {
+  currentOpacity = parseFloat(opacityInput.value);
 });
 
-opacitySlider.addEventListener('input', e => {
-  overlayImg.style.opacity = e.target.value;
+// ---------- MEDIAPIPE FACEMESH ----------
+const faceMesh = new FaceMesh({
+  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
 });
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  refineLandmarks: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+faceMesh.onResults(onResults);
 
-async function setupCamera(){
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user' }, audio:false});
+// Câmera frontal
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'user' },
+    audio: false
+  });
   video.srcObject = stream;
-  await new Promise(r => video.onloadedmetadata = r);
-  video.play();
+  await video.play();
+  syncCanvasSize();
+
+  const camera = new Camera(video, {
+    onFrame: async () => { await faceMesh.send({ image: video }); },
+    width: video.videoWidth || 720,
+    height: video.videoHeight || 960
+  });
+  camera.start();
 }
 
-function autoPlaceOverlay(landmarks){
-  // Use forehead and jaw landmarks to estimate head size & angle
-  const leftForehead = landmarks[71];  // approximate
-  const rightForehead = landmarks[301];
-  const chin = landmarks[152];
-  const nose = landmarks[1];
-
-  const dx = rightForehead.x - leftForehead.x;
-  const dy = rightForehead.y - leftForehead.y;
-  const angle = Math.atan2(dy, dx);
-
-  const headWidth = Math.hypot(dx, dy);
-  const headHeight = Math.hypot((chin.x-nose.x),(chin.y-nose.y));
-
-  const scale = Math.max(headWidth, headHeight) * 2.1; // heuristic scale
-
-  // Convert normalized coords to pixels
-  const w = output.width, h = output.height;
-  const cx = ((leftForehead.x + rightForehead.x)/2) * w;
-  const cy = ((leftForehead.y + rightForehead.y)/2) * h - (0.08*h);
-
-  overlayImg.style.width = `${scale*w}px`;
-  overlayImg.style.height = 'auto';
-  overlayImg.style.left = `${cx - (scale*w)/2}px`;
-  overlayImg.style.top = `${cy - (scale*w)/3}px`;
-  overlayImg.style.transform = `rotate(${angle}rad)`;
-}
-
-function onResults(res){
+function onResults(results) {
+  // Desenha frame da câmera
   ctx.save();
-  ctx.clearRect(0,0,output.width,output.height);
-  ctx.drawImage(video, 0, 0, output.width, output.height);
-  if(res.multiFaceLandmarks && res.multiFaceLandmarks.length>0){
-    autoPlaceOverlay(res.multiFaceLandmarks[0]);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length) {
+    const lm = results.multiFaceLandmarks[0];
+
+    // Pontos: têmporas (127 e 356) e topo da testa (10)
+    const L = lm[127], R = lm[356], T = lm[10];
+
+    // Converte para pixels
+    const lx = L.x * canvas.width,  ly = L.y * canvas.height;
+    const rx = R.x * canvas.width,  ry = R.y * canvas.height;
+    const tx = T.x * canvas.width,  ty = T.y * canvas.height;
+
+    // Largura da cabeça (entre têmporas)
+    const faceWidth = Math.hypot(rx - lx, ry - ly);
+
+    // Corte atual
+    const s = currentStyle;
+    const img = images[s.id];
+    if (img && img.complete) {
+      // Centro entre têmporas e referência na testa
+      const cx = (lx + rx) / 2;
+      const cy = ty;
+
+      // Tamanho relativo
+      const hairW = faceWidth * s.scale;
+      const hairH = hairW * (img.height / img.width);
+
+      // Ângulo da cabeça
+      const angle = Math.atan2(ry - ly, rx - lx);
+
+      // Desenha com rotação + leve deslocamento acima da testa
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.globalAlpha = currentOpacity;
+
+      const yOffset = -hairH * s.y;
+      ctx.drawImage(img, -hairW / 2, yOffset, hairW, hairH);
+
+      // Reset
+      ctx.globalAlpha = 1;
+      ctx.rotate(-angle);
+      ctx.translate(-cx, -cy);
+    }
   }
   ctx.restore();
 }
 
-async function main(){
-  await setupCamera();
-  output.width = video.videoWidth;
-  output.height = video.videoHeight;
+// Salvar preview
+document.getElementById('save').addEventListener('click', () => {
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'transfor-mais-preview.png';
+  a.click();
+});
 
-  const faceMesh = new FaceMesh.FaceMesh({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-  });
-  faceMesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
-  faceMesh.onResults(onResults);
-
-  const camera = new Camera(video,{
-    onFrame: async ()=>{ await faceMesh.send({image:video}); },
-    width: output.width,
-    height: output.height
-  });
-  camera.start();
-
-  snapBtn.addEventListener('click', ()=>{
-    // Temporarily hide controls for a clean export
-    const prev = overlayImg.style.transform;
-    // draw overlay onto canvas snapshot
-    const temp = document.createElement('canvas');
-    temp.width = output.width; temp.height = output.height;
-    const tctx = temp.getContext('2d');
-    tctx.drawImage(output,0,0);
-    // draw the overlay image in its current position
-    const rect = overlayImg.getBoundingClientRect();
-    const oRect = output.getBoundingClientRect();
-    const ox = rect.left - oRect.left;
-    const oy = rect.top - oRect.top;
-    const ow = overlayImg.clientWidth;
-    const oh = overlayImg.clientHeight;
-    // Simplified (rotation not applied in export)
-    tctx.globalAlpha = parseFloat(opacitySlider.value);
-    tctx.drawImage(overlayImg, ox, oy, ow, oh);
-
-    const url = temp.toDataURL('image/png');
-    dl.href = url;
-    dl.click();
-  });
-}
-
-main();
+// Iniciar
+startCamera().catch(err => {
+  console.error(err);
+  alert('Não foi possível acessar a câmera. Verifique permissões.');
+});
