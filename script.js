@@ -22,6 +22,7 @@ const HAIR_STYLES = [
   { id: 'sidepart', name: 'Social com risca (lado)', src: 'sidepart.png',   scale: 2.05, y: 0.78 },
   { id: 'quiff',    name: 'Quiff',                    src: 'quiff.png',      scale: 2.00, y: 0.80 },
   { id: 'short',    name: 'Social curto',             src: 'shortcrop.png',  scale: 1.90, y: 0.82 }
+  { id: 'social',   name: 'Social (natural)',         src: 'social.png',     scale: 2.00, y: 0.80 }
 ];
 
 const images = {};
