@@ -1,0 +1,17 @@
+
+:root { --bg:#0b0b0b; --fg:#f1f1f1; --accent:#d4af37; }
+*{box-sizing:border-box;font-family:Inter,system-ui,Arial;}
+body{margin:0;background:var(--bg);color:var(--fg);}
+header{padding:12px 16px;border-bottom:1px solid #222;text-align:center;}
+h1{font-size:18px;color:var(--accent);margin:0;}
+main{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:920px;margin:0 auto;}
+#camera-section{position:relative;display:flex;justify-content:center;background:#111;border-radius:12px;overflow:hidden}
+video,#output{width:100%;max-height:70vh;}
+#overlay{position:absolute;top:0;left:0;transform-origin:center center;opacity:.9;pointer-events:none;}
+#controls{display:grid;gap:10px;background:#111;border-radius:12px;padding:12px}
+.row{display:flex;align-items:center;gap:8px}
+label{min-width:120px;color:#bbb}
+select,input[type=range]{flex:1;padding:8px;border-radius:8px;border:1px solid #333;background:#0e0e0e;color:#eee}
+button{padding:10px;border:0;border-radius:10px;background:var(--accent);color:#111;font-weight:700}
+a#download{color:#ddd;margin-left:8px;text-decoration:none}
+footer{opacity:.7;text-align:center;padding:10px}

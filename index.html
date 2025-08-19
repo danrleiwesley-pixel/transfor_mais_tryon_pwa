@@ -1,0 +1,50 @@
+
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="manifest" href="manifest.json">
+<title>TransforMais • Try-On de Corte</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<header>
+  <h1>TransforMais • Try-On de Corte</h1>
+</header>
+
+<main>
+  <section id="camera-section">
+    <video id="video" playsinline autoplay></video>
+    <canvas id="output"></canvas>
+    <img id="overlay" src="assets/overlays/sidepart.png" alt="overlay">
+  </section>
+
+  <section id="controls">
+    <div class="row">
+      <label for="style">Estilo:</label>
+      <select id="style">
+        <option value="sidepart">Social com risca (lado)</option>
+        <option value="shortcrop">Social curto</option>
+        <option value="quiff">Topo com volume</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="opacity">Intensidade:</label>
+      <input id="opacity" type="range" min="0.2" max="1" value="0.9" step="0.05">
+    </div>
+    <button id="snap">Salvar preview</button>
+    <a id="download" download="transfor_mais_preview.png">Baixar</a>
+  </section>
+</main>
+
+<footer>
+  <small>Prévia ilustrativa — resultado real pode variar. © Barbearia TransforMais</small>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
